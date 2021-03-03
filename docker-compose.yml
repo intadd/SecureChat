@@ -1,10 +1,23 @@
 version: "3"
 services:
+    nginx:
+        build: ./nginx-conf 
+        restart: always
+        ports:
+            - "80:80"
+        volumes:
+            - ./web-service/:/app/
+            - ./nginx-conf/static:/static/
+            - ./docker/nginx-log/:/var/log/nginx/
+            
+        depends_on:
+            - django_asgi
+            - django_uwsgi
     db:
         image: mysql:8.0.12
         restart: always
         volumes:
-            - ./docker/data:/var/lib/mysql/
+            - ./docker/mysql:/var/lib/mysql/
         environment:
             - MYSQL_ROOT_PASSWORD=sampledb
             - MYSQL_DATABASE=test
@@ -18,7 +31,8 @@ services:
         command: --port 6379
         ports: 
             - 6379:6379
-    django:
+    django_uwsgi:
+        image: django_uwsgi
         build:
             context: .
             dockerfile: ./web-service/Dockerfile
@@ -32,11 +46,32 @@ services:
             - DJANGO_DB_USERNAME=intadd
             - DJANGO_DB_PASSWORD=intadd
             - DJANGO_SECRET_KEY=dev_secret_key
-        ports:
-            - "80:80"
-        command: python manage.py migrate 
-        command: python manage.py runserver 0.0.0.0:80
         depends_on: 
             - db
+        command: python manage.py makemigrations
+        command: python manage.py migrate
+        command: uwsgi --ini uwsgi.ini
+        volumes:
+            - ./web-service/:/app/
+
+    django_asgi:
+        image: django_uwsgi
+        environment:
+            - DJANGO_DEBUG=True
+            - DJANGO_REDIS_HOST=redis
+            - DJANGO_REDIS_PORT=6379
+            - DJANGO_DB_HOST=db
+            - DJANGO_DB_PORT=3306
+            - DJANGO_DB_NAME=test
+            - DJANGO_DB_USERNAME=intadd
+            - DJANGO_DB_PASSWORD=intadd
+            - DJANGO_SECRET_KEY=dev_secret_key
+        depends_on: 
+            - db
+        ports:
+            - "8000:8000"
+        command: python manage.py makemigrations
+        command: python manage.py migrate
+        command: daphne -b 0.0.0.0 -p 8000 secureChatProj.asgi:application
         volumes:
             - ./web-service/:/app/

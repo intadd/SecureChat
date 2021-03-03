@@ -7,4 +7,5 @@ RUN apt-get update \
 
 WORKDIR /app
 COPY ./web-service/. /app/
+
 RUN pip install -r /app/requirements.txt
